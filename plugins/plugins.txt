@@ -1,0 +1,1 @@
+Put the plugins you use in the same folder
