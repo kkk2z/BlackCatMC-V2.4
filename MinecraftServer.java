@@ -1,6 +1,7 @@
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class MinecraftServer {
     private int maxPlayers;
@@ -8,12 +9,14 @@ public class MinecraftServer {
     private boolean onlineMode;
     private Map<String, PlayerData> accounts = new HashMap<>();
     private List<String> connectedPlayers = new ArrayList<>();
+    private long startTime;
+    private int totalConnections;
 
     public static void main(String[] args) {
         MinecraftServer server = new MinecraftServer();
         server.loadConfig("server.properties");
-        server.loadAccounts("accounts.csv");
         server.start();
+        server.run();
     }
 
     public void loadConfig(String filePath) {
@@ -23,12 +26,52 @@ public class MinecraftServer {
             onlineMode = Boolean.parseBoolean(properties.getProperty("online-mode"));
             maxPlayers = Integer.parseInt(properties.getProperty("max-players"));
             serverName = properties.getProperty("server-name");
-            System.out.println("Server Loaded: " + serverName);
-            System.out.println("Max Players: " + maxPlayers);
-            System.out.println("Online Mode: " + onlineMode);
+            System.out.println("Running: " + serverName);
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void start() {
+        this.startTime = System.currentTimeMillis();
+        loadAccounts("accounts.csv");
+        // 他の初期化処理（ワールドのロードなど）
+    }
+
+    public void run() {
+        Scanner scanner = new Scanner(System.in);
+        String command;
+        while (true) {
+            command = scanner.nextLine();
+            handleCommand(command);
+        }
+    }
+
+    public void handleCommand(String command) {
+        switch (command.toLowerCase()) {
+            case "stop":
+            case "end":
+                System.out.println("Stopping: " + serverName);
+                saveAccounts("accounts.csv");
+                System.exit(0);
+                break;
+            case "info":
+                displayInfo();
+                break;
+            default:
+                System.out.println("Unknown command: " + command);
+        }
+    }
+
+    public void displayInfo() {
+        long uptime = System.currentTimeMillis() - startTime;
+        long minutes = TimeUnit.MILLISECONDS.toMinutes(uptime);
+        System.out.println("Server Name: " + serverName);
+        System.out.println("Max Players: " + maxPlayers);
+        System.out.println("Connected Players: " + connectedPlayers.size());
+        System.out.println("Total Connections: " + totalConnections);
+        System.out.println("Uptime: " + minutes + " minutes");
+        System.out.println("Version: 1.8.9, 1.9.4, 1.16");
     }
 
     public void loadAccounts(String filePath) {
@@ -60,57 +103,6 @@ public class MinecraftServer {
         }
     }
 
-    public void start() {
-        System.out.println("Starting server...");
-        loadWorld("worlds/world.zip");
-        // 仮のプレイヤー接続シミュレーション
-        handleCommand("register", "player1", "password1");
-        handleCommand("login", "player1", "password1");
-        handleCommand("kick", "player1", "player2"); // OP権限を持っている場合のテスト
-    }
-
-    public void loadWorld(String path) {
-        System.out.println("Loading world from: " + path);
-    }
-
-    public void handleCommand(String command, String player, String... args) {
-        switch (command) {
-            case "register":
-                if (args.length < 1) {
-                    System.out.println("Usage: /register <password>");
-                    return;
-                }
-                registerPlayer(player, args[0]);
-                break;
-            case "login":
-                if (args.length < 1) {
-                    System.out.println("Usage: /login <password>");
-                    return;
-                }
-                loginPlayer(player, args[0]);
-                break;
-            case "kick":
-                if (isOp(player)) {
-                    if (args.length < 1) {
-                        System.out.println("Usage: /kick <player>");
-                        return;
-                    }
-                    kickPlayer(args[0]);
-                } else {
-                    System.out.println("You do not have permission to use this command.");
-                }
-                break;
-            case "help":
-                System.out.println("Available commands: /help, /spawn, /kick <player>, /ban <player>, /register <password>, /login <password>");
-                break;
-            case "spawn":
-                System.out.println(player + " has spawned.");
-                break;
-            default:
-                System.out.println("Unknown command: " + command);
-        }
-    }
-
     public void registerPlayer(String username, String password) {
         if (accounts.containsKey(username)) {
             System.out.println("Username already exists. Please choose a different username.");
@@ -129,6 +121,7 @@ public class MinecraftServer {
         if (accounts.get(username).getPassword().equals(password)) {
             if (connectedPlayers.size() < maxPlayers) {
                 connectedPlayers.add(username);
+                totalConnections++; // 接続者数をカウント
                 System.out.println(username + " logged in.");
             } else {
                 System.out.println("Server is full!");
@@ -137,15 +130,8 @@ public class MinecraftServer {
             System.out.println("Invalid password for " + username);
         }
     }
-
-    public boolean isOp(String username) {
-        return accounts.get(username).isOp();
-    }
-
-    public void kickPlayer(String username) {
-        connectedPlayers.remove(username);
-        System.out.println(username + " has been kicked.");
-    }
+    
+    // 他のメソッド（kick、helpなど）
 }
 
 class PlayerData {
