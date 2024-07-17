@@ -1,221 +1,177 @@
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.zip.*;
 
 public class MinecraftServer {
-    private Map<String, PlayerData> accounts = new HashMap<>();
-    private String serverName;
-    private int maxPlayers;
-    private boolean onlineMode;
-    private Map<String, World> worlds = new HashMap<>();
-    private String currentWorld;
-    private List<String> onlinePlayers = new ArrayList<>(); // オンラインプレイヤーのリスト
-
-    public MinecraftServer(String serverName, int maxPlayers, boolean onlineMode) {
-        this.serverName = serverName;
-        this.maxPlayers = maxPlayers;
-        this.onlineMode = onlineMode;
-        this.currentWorld = "world"; // デフォルトワールド
-        System.out.println("Running, " + serverName);
-        initializeWorlds();
-        generateWorld("world"); // 初回起動時にワールドを生成
-        startAutoZipTask(); // 自動ZIP化タスクの開始
-    }
-
-    private void initializeWorlds() {
-        worlds.put("world", new World("world"));
-        worlds.put("nether", new World("nether"));
-        worlds.put("end", new World("end"));
-    }
-
-    private void generateWorld(String worldName) {
-        // ワールドデータのディレクトリを作成
-        String worldPath = "worlds/" + worldName; // worldsフォルダに保存
-        File worldDir = new File(worldPath);
-        if (!worldDir.exists()) {
-            worldDir.mkdirs(); // ディレクトリ作成
-            // 1.8.9スタイルのワールド生成処理を模倣
-            createWorldFiles(worldPath);
-            System.out.println("World " + worldName + " has been generated.");
-        } else {
-            System.out.println("World " + worldName + " already exists.");
-        }
-    }
-
-    private void createWorldFiles(String worldPath) {
-        // ここに1.8.9スタイルのワールドファイルを生成する処理を実装
-        try {
-            // 例として、空のlevel.datを作成する
-            File levelDat = new File(worldPath, "level.dat");
-            try (FileOutputStream fos = new FileOutputStream(levelDat)) {
-                fos.write(new byte[1024]); // ダミーデータ
-            }
-            // 他の必要なワールドファイルをここに作成
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void startAutoZipTask() {
-        new Thread(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(60000); // 1分ごとにチェック
-                    checkAndZipWorld(currentWorld);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-    }
-
-    public void onCommand(String command, String[] args, String sender) {
-        switch (command.toLowerCase()) {
-            case "help":
-                displayHelp(sender);
-                break;
-            case "ban":
-                banPlayer(sender, args);
-                break;
-            case "info":
-                displayInfo(sender);
-                break;
-            case "worlds":
-                listWorlds(sender);
-                break;
-            case "world":
-                changeWorld(sender, args);
-                break;
-            default:
-                System.out.println("Unknown command: " + command);
-        }
-    }
-
-    private void displayHelp(String sender) {
-        System.out.println("=== Help Commands ===");
-        System.out.println("/help - Displays help information");
-        System.out.println("/ban <player> - Bans a player");
-        System.out.println("/info - Displays server info");
-        System.out.println("/worlds - Lists available worlds");
-        System.out.println("/world <world_name> - Changes the current world");
-        System.out.println("=====================");
-    }
-
-    private void banPlayer(String sender, String[] args) {
-        if (!isOp(sender)) {
-            System.out.println("You do not have permission to use this command.");
-            return;
-        }
-
-        if (args.length == 0) {
-            System.out.println("Usage: /ban <player>");
-            return;
-        }
-
-        String playerToBan = args[0];
-        // バン処理のロジック
-        System.out.println(playerToBan + " has been banned.");
-    }
-
-    private void displayInfo(String sender) {
-        System.out.println("=== Server Info ===");
-        System.out.println("Server Name: " + serverName);
-        System.out.println("Max Players: " + maxPlayers);
-        System.out.println("Current World: " + currentWorld);
-        System.out.println("=====================");
-    }
-
-    private void listWorlds(String sender) {
-        System.out.println("=== Available Worlds ===");
-        for (String worldName : worlds.keySet()) {
-            System.out.println(worldName);
-        }
-        System.out.println("========================");
-    }
-
-    private void changeWorld(String sender, String[] args) {
-        if (args.length == 0) {
-            System.out.println("Usage: /world <world_name>");
-            return;
-        }
-
-        String newWorld = args[0];
-        if (worlds.containsKey(newWorld)) {
-            currentWorld = newWorld;
-            System.out.println(sender + " has moved to " + newWorld);
-        } else {
-            System.out.println("World " + newWorld + " does not exist.");
-        }
-    }
-
-    private boolean isOp(String playerName) {
-        return accounts.containsKey(playerName) && accounts.get(playerName).isOp();
-    }
-
-    private void checkAndZipWorld(String worldName) {
-        if (onlinePlayers.isEmpty()) { // プレイヤーがいないかチェック
-            zipWorld(worldName);
-        }
-    }
-
-    private void zipWorld(String worldName) {
-        String worldPath = "worlds/" + worldName; // ワールドのパスを指定
-        String zipFilePath = worldName + ".zip"; // ZIPファイル名
-
-        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFilePath))) {
-            Path sourceDirPath = Paths.get(worldPath);
-            Files.walk(sourceDirPath).forEach(path -> {
-                ZipEntry zipEntry = new ZipEntry(sourceDirPath.relativize(path).toString());
-                try {
-                    zos.putNextEntry(zipEntry);
-                    if (!Files.isDirectory(path)) {
-                        Files.copy(path, zos);
-                    }
-                    zos.closeEntry();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-            System.out.println("World " + worldName + " has been zipped to " + zipFilePath);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private class PlayerData {
-        private String name;
-        private boolean isOp;
-
-        public PlayerData(String name, boolean isOp) {
-            this.name = name;
-            this.isOp = isOp;
-        }
-
-        public boolean isOp() {
-            return isOp;
-        }
-    }
-
-    private class World {
-        private String name;
-
-        public World(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
-    }
+    private Map<String, String> accounts = new HashMap<>();
+    private Set<String> opPlayers = new HashSet<>();
+    private String worldName;
+    private Set<String> loggedInPlayers = new HashSet<>();
 
     public static void main(String[] args) {
-        MinecraftServer server = new MinecraftServer("My Minecraft Server", 20, false);
-        // コマンド処理の例
-        server.onCommand("help", new String[]{}, "Console");
-        server.onCommand("worlds", new String[]{}, "Console");
-        server.onCommand("world", new String[]{"nether"}, "Console");
-        server.onCommand("info", new String[]{}, "Console");
+        MinecraftServer server = new MinecraftServer();
+        server.loadProperties();
+        server.loadAccounts();
+        server.start();
+    }
+
+    public void loadProperties() {
+        try (BufferedReader reader = new BufferedReader(new FileReader("server.properties"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("server-name=")) {
+                    worldName = line.split("=")[1];
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error loading properties: " + e.getMessage());
+            worldName = "defaultWorld"; // デフォルト名
+        }
+    }
+
+    public void loadAccounts() {
+        try (BufferedReader reader = new BufferedReader(new FileReader("account.csv"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    accounts.put(parts[0], parts[1]);
+                    if (parts.length == 3 && parts[2].equals("op")) {
+                        opPlayers.add(parts[0]);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error loading accounts: " + e.getMessage());
+        }
+    }
+
+    public void start() {
+        System.out.println("Running, " + worldName);
+        generateWorld(worldName);
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            String command = scanner.nextLine();
+            handleCommand(command);
+        }
+    }
+
+    public void handleCommand(String command) {
+        String[] parts = command.split(" ");
+        String cmd = parts[0];
+
+        switch (cmd) {
+            case "/help":
+                System.out.println("/help - コマンド一覧を表示");
+                System.out.println("/register <username> <password> - アカウントを登録");
+                System.out.println("/login <username> <password> - ログイン");
+                System.out.println("/logout - ログアウト");
+                System.out.println("/ban <username> - プレイヤーをBAN");
+                System.out.println("/op <username> - プレイヤーにOP権限を付与");
+                System.out.println("/info - サーバ情報を表示");
+                break;
+            case "/register":
+                if (parts.length < 3) {
+                    System.out.println("使用法: /register <username> <password>");
+                    break;
+                }
+                registerAccount(parts[1], parts[2]);
+                break;
+            case "/login":
+                if (parts.length < 3) {
+                    System.out.println("使用法: /login <username> <password>");
+                    break;
+                }
+                login(parts[1], parts[2]);
+                break;
+            case "/logout":
+                logout(parts[1]);
+                break;
+            case "/ban":
+                if (parts.length < 2) {
+                    System.out.println("使用法: /ban <username>");
+                    break;
+                }
+                banPlayer(parts[1]);
+                break;
+            case "/op":
+                if (parts.length < 2) {
+                    System.out.println("使用法: /op <username>");
+                    break;
+                }
+                opPlayer(parts[1]);
+                break;
+            case "/info":
+                displayInfo();
+                break;
+            default:
+                System.out.println("未知のコマンド: " + cmd);
+        }
+    }
+
+    public void registerAccount(String username, String password) {
+        if (accounts.containsKey(username)) {
+            System.out.println("ユーザー名はすでに使用されています。");
+            return;
+        }
+        accounts.put(username, password);
+        saveAccounts();
+        System.out.println("アカウントが登録されました: " + username);
+    }
+
+    public void login(String username, String password) {
+        if (!accounts.containsKey(username) || !accounts.get(username).equals(password)) {
+            System.out.println("ログイン失敗: ユーザー名またはパスワードが間違っています。");
+            return;
+        }
+        loggedInPlayers.add(username);
+        System.out.println(username + " がログインしました。");
+    }
+
+    public void logout(String username) {
+        if (loggedInPlayers.remove(username)) {
+            System.out.println(username + " がログアウトしました。");
+        } else {
+            System.out.println(username + " はログインしていません。");
+        }
+    }
+
+    public void banPlayer(String username) {
+        if (!opPlayers.contains(username)) {
+            System.out.println("BAN権限がありません。");
+            return;
+        }
+        System.out.println(username + " がBANされました。");
+    }
+
+    public void opPlayer(String username) {
+        opPlayers.add(username);
+        saveAccounts();
+        System.out.println(username + " にOP権限が付与されました。");
+    }
+
+    public void displayInfo() {
+        System.out.println("サーバ名: " + worldName);
+        System.out.println("接続人数: " + loggedInPlayers.size());
+        System.out.println("OP権限ユーザー: " + opPlayers);
+    }
+
+    public void generateWorld(String worldName) {
+        // ワールド生成の処理をここに追加
+    }
+
+    public void saveAccounts() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("account.csv"))) {
+            for (Map.Entry<String, String> entry : accounts.entrySet()) {
+                String username = entry.getKey();
+                String password = entry.getValue();
+                String opStatus = opPlayers.contains(username) ? ",op" : "";
+                writer.write(username + "," + password + opStatus);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.err.println("Error saving accounts: " + e.getMessage());
+        }
     }
 }
-// なんか、あとでコンパイルすると勝手にjar形式になるから.javaでいいらしい
