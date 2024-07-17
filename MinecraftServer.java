@@ -19,6 +19,7 @@ public class MinecraftServer {
         this.currentWorld = "world"; // デフォルトワールド
         System.out.println("Running, " + serverName);
         initializeWorlds();
+        generateWorld("world"); // 初回起動時にワールドを生成
         startAutoZipTask(); // 自動ZIP化タスクの開始
     }
 
@@ -26,6 +27,34 @@ public class MinecraftServer {
         worlds.put("world", new World("world"));
         worlds.put("nether", new World("nether"));
         worlds.put("end", new World("end"));
+    }
+
+    private void generateWorld(String worldName) {
+        // ワールドデータのディレクトリを作成
+        String worldPath = "worlds/" + worldName; // worldsフォルダに保存
+        File worldDir = new File(worldPath);
+        if (!worldDir.exists()) {
+            worldDir.mkdirs(); // ディレクトリ作成
+            // 1.8.9スタイルのワールド生成処理を模倣
+            createWorldFiles(worldPath);
+            System.out.println("World " + worldName + " has been generated.");
+        } else {
+            System.out.println("World " + worldName + " already exists.");
+        }
+    }
+
+    private void createWorldFiles(String worldPath) {
+        // ここに1.8.9スタイルのワールドファイルを生成する処理を実装
+        try {
+            // 例として、空のlevel.datを作成する
+            File levelDat = new File(worldPath, "level.dat");
+            try (FileOutputStream fos = new FileOutputStream(levelDat)) {
+                fos.write(new byte[1024]); // ダミーデータ
+            }
+            // 他の必要なワールドファイルをここに作成
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void startAutoZipTask() {
