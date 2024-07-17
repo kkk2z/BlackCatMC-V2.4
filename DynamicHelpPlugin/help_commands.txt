@@ -1,6 +1,0 @@
-/mimic - Mimics a 1.16 feature
-/help - Displays help information
-/info - サーバの概要
-/kick - OP権限のある人だけができる
-/ban  -  以下略
-/spawn-  spawnに行く
